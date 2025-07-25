@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	batchv1 "github.com/yourusername/cronjob-operator/api/v1"
+	batchv1 "github.com/OrRener/cronjob/api/v1"
 )
 
 // CronJobReconciler reconciles a CronJob object

@@ -37,8 +37,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	batchv1 "github.com/yourusername/cronjob-operator/api/v1"
-	"github.com/yourusername/cronjob-operator/internal/controller"
+	batchv1 "github.com/OrRener/cronjob/api/v1"
+	"github.com/OrRener/cronjob/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
 

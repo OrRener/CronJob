@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	batchv1 "github.com/yourusername/cronjob-operator/api/v1"
+	batchv1 "github.com/OrRener/cronjob/api/v1"
 )
 
 var _ = Describe("CronJob Controller", func() {
