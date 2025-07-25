@@ -1,4 +1,4 @@
-module github.com/yourusername/cronjob-operator
+module github.com/OrRener/cronjob
 
 go 1.24.0
 

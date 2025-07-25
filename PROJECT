@@ -8,4 +8,14 @@ layout:
 - go.kubebuilder.io/v4
 projectName: cronjob
 repo: github.com/yourusername/cronjob-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: rener.med.one
+  group: batch
+  kind: CronJob
+  path: github.com/yourusername/cronjob-operator/api/v1
+  version: v1
 version: "3"
