@@ -17,6 +17,8 @@ limitations under the License.
 package v1
 
 import (
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -25,8 +27,8 @@ import (
 
 // CronJobSpec defines the desired state of CronJob
 type CronJobSpec struct {
-	Schedule    string          `json:"schedule"`
-	JobTemplate batchv1.JobSpec `json:"jobTemplate"`
+	Schedule    string                  `json:"schedule"`
+	JobTemplate batchv1.JobTemplateSpec `json:"jobTemplate"`
 }
 
 // CronJobStatus defines the observed state of CronJob.

@@ -18,13 +18,18 @@ package controller
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	batchv1 "github.com/OrRener/cronjob/api/v1"
+	renerv1 "github.com/OrRener/cronjob/api/v1"
+	cron "github.com/robfig/cron/v3"
+	batchv1 "k8s.io/api/batch/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // CronJobReconciler reconciles a CronJob object
@@ -46,18 +51,130 @@ type CronJobReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.21.0/pkg/reconcile
+
+func (r *CronJobReconciler) getCronJob(ctx context.Context, req ctrl.Request) (*renerv1.CronJob, error) {
+	var cronJob renerv1.CronJob
+	err := r.Get(ctx, req.NamespacedName, &cronJob)
+	if err != nil {
+		return nil, err
+	}
+	return &cronJob, nil
+}
+
+func (r *CronJobReconciler) parseCronSchedule(schedule string) (cron.Schedule, error) {
+	// Parse the cron schedule string
+	sched, err := cron.ParseStandard(schedule)
+	if err != nil {
+		logf.Log.Error(err, "Failed to parse cron schedule", "schedule", schedule)
+		return nil, err
+	}
+	logf.Log.Info("Parsed cron schedule", "schedule", schedule)
+	return sched, nil
+}
+
+func (r *CronJobReconciler) getLastRun(cronJob renerv1.CronJob) time.Time {
+
+	// Get last run time or creation time
+	var lastRun time.Time
+	if cronJob.Status.LastScheduleTime != nil {
+		lastRun = cronJob.Status.LastScheduleTime.Time
+	} else {
+		lastRun = cronJob.CreationTimestamp.Time
+	}
+	logf.Log.Info("Last run time", "lastRun", lastRun, "cronJob", cronJob.Name)
+	return lastRun
+}
+
+func (r *CronJobReconciler) checkIfItsTimeToRun(schedule cron.Schedule, cronjob renerv1.CronJob) bool {
+	// Get the last run time
+	lastRun := r.getLastRun(cronjob)
+
+	// Get the current time
+	currentTime := time.Now()
+
+	nextRun := schedule.Next(lastRun)
+	if currentTime.After(nextRun) || currentTime.Equal(nextRun) {
+		logf.Log.Info("It's time to run the job", "nextRun", nextRun, "currentTime", currentTime, "cronJob", cronjob.Name)
+		return true
+	}
+	logf.Log.Info("Not time to run the job yet", "nextRun", nextRun, "currentTime", currentTime, "cronJob", cronjob.Name)
+	return false
+}
+
+func (r *CronJobReconciler) updateCronJobStatus(ctx context.Context, cronjob *renerv1.CronJob) error {
+
+	cronjob.Status.LastScheduleTime = &metav1.Time{Time: time.Now()}
+	logf.Log.Info("Updating CronJob status", "cronJob", cronjob.Name, "lastScheduleTime", cronjob.Status.LastScheduleTime)
+	// Update the CronJob status
+	if err := r.Status().Update(ctx, cronjob); err != nil {
+		logf.Log.Error(err, "Failed to update CronJob status", "cronJob", cronjob.Name)
+		return fmt.Errorf("failed to update CronJob status: %w", err)
+	}
+	logf.Log.Info("CronJob status updated successfully", "cronJob", cronjob.Name)
+	return nil
+}
+
+func (r *CronJobReconciler) runJob(ctx context.Context, cronJob *renerv1.CronJob) error {
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: cronJob.Name + "-",
+			Namespace:    cronJob.Namespace,
+		},
+		Spec: *cronJob.Spec.JobTemplate.Spec.DeepCopy(),
+	}
+
+	// Set OwnerReference so job is deleted when CronJob is deleted
+	if err := ctrl.SetControllerReference(cronJob, job, r.Scheme); err != nil {
+		return err
+	}
+
+	// Create the Job
+	if err := r.Client.Create(ctx, job); err != nil {
+		return err
+	}
+
+	// Update CronJob status LastScheduleTime
+	cronJob.Status.LastScheduleTime = &metav1.Time{Time: time.Now()}
+	if err := r.Status().Update(ctx, cronJob); err != nil {
+		return err
+	}
+	logf.Log.Info("Job created successfully", "jobName", job.Name, "cronJob", cronJob.Name)
+	r.updateCronJobStatus(ctx, cronJob)
+	return nil
+}
+
 func (r *CronJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = logf.FromContext(ctx)
 
-	// TODO(user): your logic here
-
-	return ctrl.Result{}, nil
+	// Fetch the CronJob instance
+	cronJob, err := r.getCronJob(ctx, req)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if cronJob == nil {
+		// If the CronJob does not exist, return without error
+		return ctrl.Result{}, nil
+	}
+	sched, err := r.parseCronSchedule(cronJob.Spec.Schedule)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	// Check if it's time to run the job
+	if r.checkIfItsTimeToRun(sched, *cronJob) {
+		// Run the job
+		if err := r.runJob(ctx, cronJob); err != nil {
+			logf.Log.Error(err, "Failed to run job for CronJob", "cronJob", cronJob.Name)
+			return ctrl.Result{}, err
+		}
+	}
+	return ctrl.Result{RequeueAfter: time.Second}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *CronJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&batchv1.CronJob{}).
+		For(&renerv1.CronJob{}).
+		Owns(&batchv1.Job{}).
 		Named("cronjob").
 		Complete(r)
 }

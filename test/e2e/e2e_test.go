@@ -27,7 +27,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/yourusername/cronjob-operator/test/utils"
+	"github.com/OrRener/cronjob/test/utils"
 )
 
 // namespace where the project is deployed in

@@ -17,3 +17,19 @@ namespace:
 
 varReference:
 - path: metadata/annotations
+
+nameReference:
+- kind: ConfigMap
+  fieldSpecs:
+  - path: metadata/annotations
+    kind: CustomResourceDefinition
+
+patchesJson6902:
+- target:
+    group: apiextensions.k8s.io
+    version: v1
+    kind: CustomResourceDefinition
+    name: cronjobs.batch.rener.med.one
+
+  path: remove-annotations.yaml
+
