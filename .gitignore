@@ -24,4 +24,5 @@ go.work
 .vscode
 *.swp
 *.swo
+.kubeconfig
 *~
